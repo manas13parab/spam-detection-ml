@@ -1,0 +1,64 @@
+import argparse
+import re
+from email import policy
+from email.parser import BytesParser
+from pathlib import Path
+
+import joblib
+import pandas as pd
+
+
+def clean_text(text):
+    if pd.isna(text):
+        return ''
+    text = str(text).lower()
+    text = re.sub(r'[^a-z\s]', ' ', text)
+    return re.sub(r'\s+', ' ', text).strip()
+
+
+model_path = Path(__file__).resolve().with_name('spam_model.pkl')
+vectorizer_path = Path(__file__).resolve().with_name('vectorizer.pkl')
+
+if not model_path.exists() or not vectorizer_path.exists():
+    raise FileNotFoundError('Model files not found. Run model_for_reuse first.')
+
+model = joblib.load(model_path)
+vectorizer = joblib.load(vectorizer_path)
+
+
+def predict_spam(text):
+    cleaned = clean_text(text)
+    vec = vectorizer.transform([cleaned])
+    pred = model.predict(vec)[0]
+    return 'Spam' if pred == 1 else 'Not Spam'
+
+
+def read_email_body(path):
+    with open(path, 'rb') as f:
+        msg = BytesParser(policy=policy.default).parse(f)
+
+    body = ''
+    for part in msg.walk():
+        if part.get_content_type() == 'text/plain':
+            body += part.get_payload() + '\n'
+    return body.strip()
+
+
+def classify_email_file(email_path):
+    text = read_email_body(email_path)
+    return predict_spam(text)
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Classify an email file as spam or not spam')
+    parser.add_argument('path', nargs='?', default='emails', help='Email file (.eml) or folder containing .eml files')
+    args = parser.parse_args()
+
+    target = Path(args.path)
+    if target.is_file():
+        print(target.name, '->', classify_email_file(target))
+    elif target.is_dir():
+        for email_file in sorted(target.glob('*.eml')):
+            print(email_file.name, '->', classify_email_file(email_file))
+    else:
+        print(f'Path not found: {target}')
