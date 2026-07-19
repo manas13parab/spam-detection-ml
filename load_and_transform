@@ -1,0 +1,17 @@
+from pathlib import Path
+import pandas as pd
+
+csv_path = Path(__file__).resolve().with_name('spam_ham_dataset.csv')
+if not csv_path.exists():
+    raise FileNotFoundError(f'CSV file not found: {csv_path}')
+
+df = pd.read_csv(csv_path, encoding='latin-1')
+print(df.head())
+
+df = df[['label', 'text']]  # keep relevant columns
+df.columns = ['label', 'text']
+
+print(df.shape)
+print(df['label'].value_counts())  # check class balance
+df.head()
+print("Code executed successfully")
